@@ -1,0 +1,220 @@
+<!DOCTYPE html>
+<html lang="zh_CN">
+
+<head>
+      <meta charset="UTF-8">
+      <meta name="viewport" content="width=device-width, initial-scale=1.0">
+      <title>Document</title>
+      <style>
+            html {
+                  overflow: hidden;
+            }
+
+            body {
+                  margin: 0;
+                  overflow: hidden;
+            }
+
+            #app {
+                  height: 200px;
+                  overflow: overlay;
+            }
+
+            li {
+                  list-style: none;
+                  border: 1px solid gainsboro;
+                  margin: 5px;
+
+            }
+      </style>
+</head>
+
+<body>
+      <div id="app" @dragstart="strat" @dragover="dragover" @dragend="end">
+            <li draggable v-for="(item,index) in list" :key="index">{{item.value}},index:{{index}}</li>
+      </div>
+      <script src="./vue.js"></script>
+      <script>
+            new Vue({
+                  el: "#app",
+                  data() {
+                        return {
+                              list: [
+                                    {
+                                          value: 0
+                                    },
+                                    {
+                                          value: 1
+                                    },
+                                    {
+                                          value: 2
+                                    },
+                                    {
+                                          value: 3
+                                    },
+                                    {
+                                          value: 4
+                                    },
+                                    {
+                                          value: 5
+                                    }
+                              ],
+                              dragElement: null,
+                              startIndex: null
+                        }
+                  },
+                  methods: {
+                        strat(event) {
+                              // console.log("拖拽开始了");
+                              this.dragElement = event.target
+                              // 开始时将初始坐标记录
+                              this.startIndex = this.getIndex(event.target)
+
+                              // 拖拽开始后，目标元素发生变化不会影响已经生成的拖拽图像，但是目标元素如果移除了的话就会终止拖拽
+                              // setTimeout(() => {
+                              //       console.log(this);
+                              //       this.data = "111"
+                              // }, 1000);
+                        },
+
+                        // 容器over事件，但是自身也能触发
+                        dragover(event) {
+                              // 触发容器不为拖拽元素
+                              if (event.target != this.dragElement) {
+
+                                    // 拖拽元素初始位置
+                                    var dragingRect = this.dragElement.getBoundingClientRect()
+
+                                    // 判断是否动画元素,否则在transform过程中两个元素会一直变换
+                                    if (event.target.animated) {
+                                          return;
+                                    }
+
+
+                                    if (event.target.parentElement == this.dragElement.parentElement) {
+                                          // 触发元素是兄弟元素
+
+                                          // 获取兄弟元素的初始位置
+                                          var targetRect = event.target.getBoundingClientRect()
+                                          this.sort(event.target)
+                                          // console.log("其他li触发了enter");
+
+
+                                          this._animate(dragingRect, this.dragElement)
+                                          this._animate(targetRect, event.target)
+
+                                    } else if (event.target == this.dragElement.parentElement) {
+                                          // 触发元素为父元素,并且在最底部
+                                          let lastElementChild = event.target.lastElementChild
+                                          let bottom = lastElementChild.offsetTop + lastElementChild.offsetHeight
+
+                                          if (lastElementChild != this.dragElement && event.offsetY >= bottom) {
+                                                // console.log("li的父元素触发了enter", bottom, event);
+                                                // 获取最后一个元素的初始位置
+                                                var targetRect = lastElementChild.getBoundingClientRect()
+                                                event.target.appendChild(this.dragElement)
+
+                                                this._animate(dragingRect, this.dragElement)
+                                                this._animate(targetRect, lastElementChild)
+                                          }
+
+                                    }
+                              }
+
+                        },
+                        // 还原拖拽，并操作更新vue数组，数据库更新也在这里
+                        end(event) {
+                              // 结束时再次记录坐标,并在这里还原拖拽,然后根据两次坐标来操作vue数组
+                              let startIndex = this.startIndex
+                              let endIndex = this.getIndex(this.dragElement)
+                              let parentElement = this.dragElement.parentElement
+
+                              if (endIndex > startIndex) {
+                                    parentElement.insertBefore(this.dragElement, parentElement.children[startIndex]);
+                              } else {
+                                    parentElement.insertBefore(this.dragElement, parentElement.children[startIndex].nextSibling);
+                              }
+
+                              // 更新items数组
+                              let item = this.list.splice(startIndex, 1); //删除移动的item，返回删除的元素(作为数组)
+                              this.list.splice(endIndex, 0, item[0]); //将移动的item插入到新的坐标
+
+                              // 更新数据库数组顺序
+                        },
+                        // 获取元素在父节点的索引
+                        getIndex(el) {
+                              var index = 0
+                              if (!el || !el.parentNode) {
+                                    return -1
+                              }
+                              // previousElementSibling：上一个兄弟元素
+                              while (el && (el = el.previousElementSibling)) {
+                                    index++
+                              }
+                              return index
+                        },
+                        // 排序
+                        sort(target) {
+                              if (this.getIndex(this.dragElement) < this.getIndex(target)) {
+                                    // 目标比元素大，插到其后面
+                                    // extSibling下一个兄弟元素
+                                    target.parentNode.insertBefore(this.dragElement, target.nextSibling)
+                              } else {
+                                    // 目标比元素小，插到其前面
+                                    target.parentNode.insertBefore(this.dragElement, target)
+                              }
+                        },
+                        _animate(prevRect, target) {
+                              let _this = this
+                              // 第一个参数是初始位置的矩形，第二个是现在的dom元素，操作的都是内联样式，所以不影响选择器样式
+                              var ms = 300
+                              if (ms) {
+                                    // 现在的边框
+                                    var currentRect = target.getBoundingClientRect()
+                                    // 通过transform把元素放在之前的位置
+                                    this._css(target, 'transition', 'none')
+                                    this._css(target, 'transform', 'translate3d(' +
+                                          (prevRect.left - currentRect.left) + 'px,' +
+                                          (prevRect.top - currentRect.top) + 'px,0)'
+                                    );
+
+                                    // 触发重绘
+                                    target.offsetWidth;
+
+                                    // 再把transform归于原位(新位置),并设置过渡动画达到拖拽动画
+                                    this._css(target, 'transition', 'all ' + ms + 'ms');
+                                    this._css(target, 'transform', 'translate3d(0,0,0)');
+
+                                    // 事件到了之后把transition和transform清空
+                                    clearTimeout(target.animated);
+                                    target.animated = setTimeout(function () {
+                                          _this._css(target, 'transition', '');
+                                          _this._css(target, 'transform', '');
+                                          target.animated = false;
+                                    }, ms);
+                              }
+                        },
+                        _css(el, prop, val) {
+                              var style = el && el.style
+                              if (style) {
+                                    if (val === void 0) {
+                                          if (document.defaultView && document.defaultView.getComputedStyle) {
+                                                val = document.defaultView.getComputedStyle(el, '')
+                                          } else if (el.currentStyle) {
+                                                val = el.currentStyle
+                                          }
+                                          return prop === void 0 ? val : val[prop]
+                                    } else {
+                                          if (!(prop in style)) {
+                                                prop = '-webkit-' + prop;
+                                          }
+                                          style[prop] = val + (typeof val === 'string' ? '' : 'px')
+                                    }
+                              }
+                        }
+                  }
+            })
+      </script>
+</body>
+
+</html>
