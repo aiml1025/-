@@ -31,7 +31,7 @@
 
 <body>
       <div id="app" @dragstart="strat" @dragover="dragover" @dragend="end">
-            <li draggable v-for="(item,index) in list" :key="index">{{item.value}},index:{{index}}</li>
+            <li draggable v-for="(item,index) in list" :key="index">{{item.value}} vue数组索引:{{index}}</li>
       </div>
       <script src="./vue.js"></script>
       <script>
